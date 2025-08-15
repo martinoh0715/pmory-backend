@@ -58,6 +58,16 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// Home route
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'PMory Backend API is running!',
+    endpoints: {
+      health: '/health',
+      chat: '/api/chat (POST)'
+    }
+  });
+});
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'PMory Backend is running' });
