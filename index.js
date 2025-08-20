@@ -1,11 +1,19 @@
 const express = require('express');
 const cors = require('cors');
 const serverless = require('serverless-http');
-
 const app = express();
 
-// Middleware
-app.use(cors());
+// Enhanced CORS configuration
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: false
+}));
+
+// Handle preflight requests
+app.options('*', cors());
+
 app.use(express.json());
 
 // Simple knowledge base for PMory
