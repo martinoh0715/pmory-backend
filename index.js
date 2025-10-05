@@ -1,6 +1,6 @@
 const https = require('https');
 
-// PMory Knowledge Base (RAG Data)
+// PMory Knowledge Base (RAG Data) - EXPANDED VERSION
 const pmoryKnowledge = {
   pmBasics: {
     definition: "Product Management is the practice of strategically driving the development, market launch, and continual support and improvement of a company's products.",
@@ -13,15 +13,73 @@ const pmoryKnowledge = {
     "Leadership experience from various programs", 
     "Network of successful alumni in tech industry",
     "Case study methodology similar to PM problem-solving"
-  ]
+  ],
+  // ADD THIS NEW SECTION - EMORY COURSES
+  emoryCourses: {
+    core: [
+      "ACT 200: Accounting - Understanding financial metrics for product decisions",
+      "FIN 320: Corporate Finance - Essential for ROI and business cases",
+      "MKT 340: Marketing Management - Core PM skill for customer needs",
+      "ISOM 351: Process and Systems Management - Product development processes",
+      "OAM 330/331: Organization and Strategic Management - Leadership skills"
+    ],
+    pmFocused: [
+      "MKT 347: Product and Brand Management - Direct PM skills and product development",
+      "MKT 345: Advanced Marketing Strategy - Product lifecycle management",
+      "MKT 342: Data Driven Market Intelligence - Customer insights and research",
+      "MKT 443: Monetization and Pricing Strategy - Product pricing decisions",
+      "MKT 499R: Monetizing Innovations - Launching new products",
+      "ISOM 352: Applied Data Analytics with Coding - Python and SQL for PMs",
+      "ISOM 456: Business Data Analytics - Product metrics analysis",
+      "ISOM 355: Appcology - Digital products and platforms",
+      "ISOM 450: Foundations of Digital Enterprises - Digital product strategy",
+      "OAM 436: Entrepreneurship - Product innovation mindset",
+      "OAM 438: Management Consulting - Problem-solving frameworks",
+      "FIN 322: Strategic Valuation - Assessing product value and ROI"
+    ],
+    immersive: [
+      "MKT 442: Marketing Consulting Practicum - Real client projects",
+      "ISOM 356: Think.Code.Make - Build actual products",
+      "OAM 471: Applied Entrepreneurship - Launch your own product",
+      "BUS 399R: Building AI Solutions - Develop AI products"
+    ],
+    recommendedPaths: [
+      "Marketing + ISOM depth: Combines customer focus with technical skills for tech PM",
+      "Marketing + Entrepreneurship: Perfect for product innovation",
+      "Business Analytics + Marketing: Data-driven PM approach",
+      "Consulting + Marketing: Strong problem-solving and customer focus"
+    ]
+  }
 };
 
-// Search knowledge base (RAG function)
+// ENHANCED Search function to handle course queries better
 function searchKnowledge(query) {
   const results = [];
   const queryLower = query.toLowerCase();
   const queryWords = queryLower.split(' ');
   
+  // Special handling for course-related queries
+  if (queryWords.some(word => ['course', 'class', 'curriculum', 'major', 'study'].includes(word))) {
+    // Return course information
+    if (pmoryKnowledge.emoryCourses) {
+      if (queryWords.some(word => ['core', 'foundation', 'basic'].includes(word))) {
+        pmoryKnowledge.emoryCourses.core.forEach(course => {
+          results.push(`Core Course: ${course}`);
+        });
+      } else if (queryWords.some(word => ['pm', 'product', 'management'].includes(word))) {
+        pmoryKnowledge.emoryCourses.pmFocused.slice(0, 5).forEach(course => {
+          results.push(`PM Course: ${course}`);
+        });
+      } else {
+        // Return a mix of recommendations
+        results.push(`PM Course: ${pmoryKnowledge.emoryCourses.pmFocused[0]}`);
+        results.push(`Immersive: ${pmoryKnowledge.emoryCourses.immersive[0]}`);
+        results.push(`Path: ${pmoryKnowledge.emoryCourses.recommendedPaths[0]}`);
+      }
+    }
+  }
+  
+  // Continue with existing search logic for other queries
   Object.entries(pmoryKnowledge).forEach(([category, data]) => {
     if (typeof data === 'object' && !Array.isArray(data)) {
       Object.entries(data).forEach(([key, value]) => {
@@ -46,10 +104,11 @@ function searchKnowledge(query) {
     }
   });
   
-  return results.slice(0, 3);
+  // Remove duplicates and limit results
+  return [...new Set(results)].slice(0, 5);
 }
 
-// Call Claude API with correct model name
+// ENHANCED Claude system prompt to include course knowledge
 async function callClaude(message, knowledgeContext) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   
@@ -64,7 +123,12 @@ async function callClaude(message, knowledgeContext) {
 PMory Knowledge Base Context:
 ${knowledgeContext}
 
-Use the provided knowledge base context when relevant, and supplement with your general knowledge. Always be encouraging and specific in your advice for Emory students.`;
+IMPORTANT Emory Course Information:
+- Core PM courses: MKT 347 (Product Management), MKT 345 (Marketing Strategy), ISOM 352 (Data Analytics)
+- Best depth combinations: Marketing + ISOM for tech PM roles
+- Immersive experiences available: Marketing Consulting Practicum, Think.Code.Make
+
+Use the provided knowledge base context when relevant, and supplement with your general knowledge. Always be encouraging and specific in your advice for Emory students. When discussing courses, provide specific course codes and titles.`;
 
   const requestData = JSON.stringify({
     model: 'claude-sonnet-4-20250514',
@@ -78,6 +142,7 @@ Use the provided knowledge base context when relevant, and supplement with your 
     ]
   });
 
+  // Rest of your existing Claude API call code remains the same
   return new Promise((resolve, reject) => {
     const options = {
       hostname: 'api.anthropic.com',
@@ -117,8 +182,9 @@ Use the provided knowledge base context when relevant, and supplement with your 
   });
 }
 
+// Your handler remains mostly the same
 exports.handler = async (event) => {
-  // Enhanced CORS headers for Lambda Function URLs
+  // Your existing CORS and handler code stays exactly the same
   const corsHeaders = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -127,7 +193,6 @@ exports.handler = async (event) => {
     'Access-Control-Max-Age': '86400'
   };
 
-  // Handle ALL requests with CORS headers
   if (event.requestContext && event.requestContext.http && event.requestContext.http.method === 'OPTIONS') {
     return {
       statusCode: 200,
@@ -142,14 +207,13 @@ exports.handler = async (event) => {
   };
 
   try {
-    // Handle both Lambda Function URL and API Gateway event formats
     const httpMethod = event.requestContext?.http?.method || event.httpMethod || 'GET';
     const rawPath = event.requestContext?.http?.path || event.path || '/';
     const cleanPath = rawPath.replace(/^\/+/, '');
 
     if (cleanPath === '' && httpMethod === 'GET') {
       response.body = JSON.stringify({
-        message: 'PMory AI - Real Claude Sonnet 4 Ready!',
+        message: 'PMory AI - Real Claude Sonnet 4 with Emory Courses!',
         model: 'claude-sonnet-4-20250514',
         endpoints: {
           health: '/health',
@@ -160,7 +224,7 @@ exports.handler = async (event) => {
     else if (cleanPath === 'health' && httpMethod === 'GET') {
       response.body = JSON.stringify({
         status: 'OK', 
-        message: 'Claude Sonnet 4 connection ready',
+        message: 'Claude Sonnet 4 connection ready with Emory course data',
         model: 'claude-sonnet-4-20250514'
       });
     }
@@ -176,7 +240,6 @@ exports.handler = async (event) => {
 
       console.log('Processing message with Claude Sonnet 4:', message);
       
-      // Step 1: Search knowledge base (RAG)
       const knowledgeResults = searchKnowledge(message);
       const knowledgeContext = knowledgeResults.length > 0 
         ? knowledgeResults.join('\n') 
@@ -184,7 +247,6 @@ exports.handler = async (event) => {
 
       console.log('Knowledge results:', knowledgeResults);
       
-      // Step 2: Call Claude Sonnet 4
       const claudeResponse = await callClaude(message, knowledgeContext);
       
       if (claudeResponse.content && claudeResponse.content[0]) {
@@ -193,7 +255,7 @@ exports.handler = async (event) => {
           knowledge_used: knowledgeResults.length > 0,
           rag_results: knowledgeResults,
           ai_model: 'Claude Sonnet 4',
-          system: 'Real AI with RAG'
+          system: 'Real AI with RAG and Emory Courses'
         });
       } else {
         throw new Error(`Invalid Claude response structure: ${JSON.stringify(claudeResponse)}`);
