@@ -48,8 +48,17 @@ echo "==> Building Docker image (linux/amd64 for Lambda)..."
 docker build --platform linux/amd64 --build-arg OPENAI_API_KEY="$OPENAI_API_KEY" -t "${ECR_REPOSITORY}:${IMAGE_TAG}" .
 
 echo "==> Ensuring ECR repository..."
-aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" --region "$AWS_REGION" 2>/dev/null \
-  || aws ecr create-repository --repository-name "$ECR_REPOSITORY" --region "$AWS_REGION"
+if ! aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" --region "$AWS_REGION" >/dev/null 2>&1; then
+  if ! aws ecr create-repository --repository-name "$ECR_REPOSITORY" --region "$AWS_REGION" 2>/dev/null; then
+    echo ""
+    echo "ERROR: Cannot create ECR repository '$ECR_REPOSITORY'."
+    echo "  Attach AmazonEC2ContainerRegistryPowerUser to user pmory-deploy,"
+    echo "  or create the repo in AWS Console (ECR → Create repository → pmory-rag),"
+    echo "  or ask an admin to allow ecr:CreateRepository in your permissions boundary."
+    echo "  See scripts/pmory-deploy-iam-policy.json and DEPLOY.md"
+    exit 1
+  fi
+fi
 
 aws ecr get-login-password --region "$AWS_REGION" \
   | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
