@@ -1,0 +1,17 @@
+# Environment
+.env
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Vector store (built locally; baked into Lambda image at deploy)
+chroma_db/
+
+# Legacy Node artifacts
+node_modules/
+
+# OS
+.DS_Store
