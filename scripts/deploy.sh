@@ -13,8 +13,8 @@ ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ECR_URI="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 
-echo "==> Building Docker image (embeds Chroma index)..."
-docker build \
+echo "==> Building Docker image (linux/amd64, embeds Chroma index)..."
+docker build --platform linux/amd64 \
   --build-arg OPENAI_API_KEY="$OPENAI_API_KEY" \
   -t "${ECR_REPOSITORY}:${IMAGE_TAG}" .
 

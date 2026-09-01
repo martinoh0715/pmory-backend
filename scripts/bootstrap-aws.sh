@@ -44,8 +44,8 @@ else
 fi
 
 # --- Build & push image ---
-echo "==> Building Docker image..."
-docker build --build-arg OPENAI_API_KEY="$OPENAI_API_KEY" -t "${ECR_REPOSITORY}:${IMAGE_TAG}" .
+echo "==> Building Docker image (linux/amd64 for Lambda)..."
+docker build --platform linux/amd64 --build-arg OPENAI_API_KEY="$OPENAI_API_KEY" -t "${ECR_REPOSITORY}:${IMAGE_TAG}" .
 
 echo "==> Ensuring ECR repository..."
 aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" --region "$AWS_REGION" 2>/dev/null \
