@@ -5,6 +5,8 @@ set -euo pipefail
 
 # Avoid AWS CLI opening `less` and pausing the script mid-deploy
 export AWS_PAGER=""
+export PAGER=cat
+AWS=(aws --no-cli-pager)
 
 : "${AWS_REGION:=us-east-1}"
 : "${LAMBDA_FUNCTION_NAME:=pmory-chat-api}"
@@ -17,7 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+ACCOUNT_ID=$("${AWS[@]}" sts get-caller-identity --query Account --output text)
 ECR_URI="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${IAM_ROLE_NAME}"
@@ -25,9 +27,9 @@ ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${IAM_ROLE_NAME}"
 echo "==> AWS Account: $ACCOUNT_ID | Region: $AWS_REGION"
 
 # --- IAM role for Lambda ---
-if ! aws iam get-role --role-name "$IAM_ROLE_NAME" >/dev/null 2>&1; then
+if ! "${AWS[@]}" iam get-role --role-name "$IAM_ROLE_NAME" >/dev/null 2>&1; then
   echo "==> Creating IAM role: $IAM_ROLE_NAME"
-  aws iam create-role \
+  "${AWS[@]}" iam create-role \
     --role-name "$IAM_ROLE_NAME" \
     --assume-role-policy-document '{
       "Version": "2012-10-17",
@@ -37,7 +39,7 @@ if ! aws iam get-role --role-name "$IAM_ROLE_NAME" >/dev/null 2>&1; then
         "Action": "sts:AssumeRole"
       }]
     }'
-  aws iam attach-role-policy \
+  "${AWS[@]}" iam attach-role-policy \
     --role-name "$IAM_ROLE_NAME" \
     --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
   echo "    Waiting 15s for IAM role propagation..."
@@ -57,11 +59,11 @@ docker build --platform linux/amd64 \
 
 echo "==> Ensuring ECR repository..."
 ECR_DESCRIBE_ERR=$(mktemp)
-if aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" --region "$AWS_REGION" >/dev/null 2>"$ECR_DESCRIBE_ERR"; then
+if "${AWS[@]}" ecr describe-repositories --repository-names "$ECR_REPOSITORY" --region "$AWS_REGION" >/dev/null 2>"$ECR_DESCRIBE_ERR"; then
   echo "    Repository exists: $ECR_REPOSITORY"
 elif grep -q RepositoryNotFoundException "$ECR_DESCRIBE_ERR" 2>/dev/null; then
   echo "    Creating repository: $ECR_REPOSITORY"
-  if ! aws ecr create-repository --repository-name "$ECR_REPOSITORY" --region "$AWS_REGION"; then
+  if ! "${AWS[@]}" ecr create-repository --repository-name "$ECR_REPOSITORY" --region "$AWS_REGION" --output text --query repository.repositoryName; then
     rm -f "$ECR_DESCRIBE_ERR"
     exit 1
   fi
@@ -93,7 +95,7 @@ else
 fi
 rm -f "$ECR_DESCRIBE_ERR"
 
-aws ecr get-login-password --region "$AWS_REGION" \
+"${AWS[@]}" ecr get-login-password --region "$AWS_REGION" \
   | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
 docker tag "${ECR_REPOSITORY}:${IMAGE_TAG}" "${ECR_URI}:${IMAGE_TAG}"
@@ -112,22 +114,25 @@ cat > "$ENV_FILE" <<EOF
 EOF
 
 # --- Lambda function ---
-if aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+if "${AWS[@]}" lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
   echo "==> Lambda exists — updating code and config..."
-  aws lambda update-function-code \
+  "${AWS[@]}" lambda update-function-code \
     --function-name "$LAMBDA_FUNCTION_NAME" \
     --image-uri "${ECR_URI}:${IMAGE_TAG}" \
-    --region "$AWS_REGION"
-  aws lambda wait function-updated --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION"
-  aws lambda update-function-configuration \
+    --region "$AWS_REGION" \
+    --output text --query FunctionArn >/dev/null
+  "${AWS[@]}" lambda wait function-updated --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION"
+  "${AWS[@]}" lambda update-function-configuration \
     --function-name "$LAMBDA_FUNCTION_NAME" \
     --region "$AWS_REGION" \
     --environment "file://${ENV_FILE}" \
     --timeout 30 \
-    --memory-size 1536
+    --memory-size 1536 \
+    --output text --query FunctionArn >/dev/null
+  echo "    Lambda updated."
 else
   echo "==> Creating Lambda function: $LAMBDA_FUNCTION_NAME"
-  aws lambda create-function \
+  "${AWS[@]}" lambda create-function \
     --function-name "$LAMBDA_FUNCTION_NAME" \
     --package-type Image \
     --code "ImageUri=${ECR_URI}:${IMAGE_TAG}" \
@@ -135,24 +140,27 @@ else
     --region "$AWS_REGION" \
     --timeout 30 \
     --memory-size 1536 \
-    --environment "file://${ENV_FILE}"
-  aws lambda wait function-active --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION"
+    --environment "file://${ENV_FILE}" \
+    --output text --query FunctionArn >/dev/null
+  "${AWS[@]}" lambda wait function-active --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION"
+  echo "    Lambda created."
 fi
 
 rm -f "$ENV_FILE"
 
 # --- Function URL ---
-if aws lambda get-function-url-config --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+if "${AWS[@]}" lambda get-function-url-config --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
   echo "==> Function URL already exists"
 else
   echo "==> Creating Function URL (public, CORS open)..."
-  aws lambda create-function-url-config \
+  "${AWS[@]}" lambda create-function-url-config \
     --function-name "$LAMBDA_FUNCTION_NAME" \
     --region "$AWS_REGION" \
     --auth-type NONE \
-    --cors '{"AllowOrigins":["*"],"AllowMethods":["*"],"AllowHeaders":["*"],"MaxAge":86400}'
+    --cors '{"AllowOrigins":["*"],"AllowMethods":["*"],"AllowHeaders":["*"],"MaxAge":86400}' \
+    --output text --query FunctionUrl >/dev/null
 
-  aws lambda add-permission \
+  "${AWS[@]}" lambda add-permission \
     --function-name "$LAMBDA_FUNCTION_NAME" \
     --region "$AWS_REGION" \
     --statement-id FunctionURLAllowPublicAccess \
@@ -161,7 +169,7 @@ else
     --function-url-auth-type NONE 2>/dev/null || true
 fi
 
-FUNCTION_URL=$(aws lambda get-function-url-config \
+FUNCTION_URL=$("${AWS[@]}" lambda get-function-url-config \
   --function-name "$LAMBDA_FUNCTION_NAME" \
   --region "$AWS_REGION" \
   --query FunctionUrl --output text)
