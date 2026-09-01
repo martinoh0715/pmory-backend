@@ -1,0 +1,15 @@
+services:
+  pmory-api:
+    build:
+      context: .
+      args:
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "8000:8080"
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      CHROMA_PATH: /var/task/chroma_db
+      CHAT_MODEL: ${CHAT_MODEL:-claude-3-5-sonnet-latest}
+    entrypoint: []
+    command: ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

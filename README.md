@@ -57,26 +57,18 @@ curl -X POST http://localhost:8000/api/chat \
 
 ## Deploy to AWS Lambda (container)
 
-1. Build the image with your OpenAI key so embeddings are baked in:
+See **[DEPLOY.md](./DEPLOY.md)** for the full step-by-step guide (CLI script, GitHub Actions, local Docker test).
+
+Quick deploy:
 
 ```bash
-docker build \
-  --build-arg OPENAI_API_KEY=$OPENAI_API_KEY \
-  -t pmory-rag .
-
-# Local smoke test
-docker run -p 9000:8080 \
-  -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
-  pmory-rag
+export LAMBDA_FUNCTION_NAME=your-lambda-name
+export OPENAI_API_KEY=...
+export ANTHROPIC_API_KEY=...
+./scripts/deploy.sh
 ```
 
-2. Push to ECR and deploy as a Lambda function (Python 3.11 container).
-3. Set environment variables on Lambda:
-   - `ANTHROPIC_API_KEY` (required at runtime)
-   - `OPENAI_API_KEY` (optional at runtime if index pre-built; required at build)
-   - `CHAT_MODEL` (optional, default `claude-3-5-sonnet-latest`)
-4. Attach a **Function URL** with CORS enabled.
-5. Update `pmory_website` to point at the new Function URL if it changes.
+Your existing Function URL (`6zvr36ftm5cfajwvxscn73zhzi0txfdo.lambda-url.us-east-1.on.aws`) can stay the same — just update the Lambda function behind it.
 
 ## API contract
 

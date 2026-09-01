@@ -1,0 +1,152 @@
+# Deploy PMory RAG Backend to AWS Lambda
+
+Your website already calls this Function URL:
+
+```
+https://6zvr36ftm5cfajwvxscn73zhzi0txfdo.lambda-url.us-east-1.on.aws/api/chat
+```
+
+If you **update the existing Lambda function** behind that URL, you do **not** need to change `pmory_website`.
+
+---
+
+## Option A — One-command deploy (recommended)
+
+### 1. Install tools (once)
+
+```bash
+# macOS
+brew install awscli docker
+
+# Ubuntu
+sudo apt install awscli docker.io
+```
+
+### 2. Configure AWS
+
+```bash
+aws configure
+# Enter your AWS Access Key ID, Secret, region: us-east-1
+```
+
+### 3. Find your Lambda function name
+
+AWS Console → Lambda → find the function whose Function URL matches the URL above.
+
+Or:
+
+```bash
+aws lambda list-functions --region us-east-1 \
+  --query "Functions[?contains(FunctionArn, 'pmory')].FunctionName" --output table
+```
+
+### 4. Convert Lambda to container (first time only)
+
+If the function is still Node.js zip-based:
+
+1. AWS Console → Lambda → your function → **Code** → **Deploy new image**
+2. Or create a new container-based function and point the Function URL to it
+
+Package type must be **Image** for this Dockerfile.
+
+### 5. Deploy
+
+```bash
+cd pmory-backend
+cp .env.example .env
+# Edit .env with your keys
+
+export $(grep -v '^#' .env | xargs)
+export LAMBDA_FUNCTION_NAME=your-function-name-here
+
+chmod +x scripts/deploy.sh
+./scripts/deploy.sh
+```
+
+### 6. Test
+
+```bash
+curl -X POST "https://6zvr36ftm5cfajwvxscn73zhzi0txfdo.lambda-url.us-east-1.on.aws/api/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"What Emory courses should I take for PM?"}'
+```
+
+Expected: JSON with `"response"`, `"knowledge_used": true`, and `"sources"` listing markdown files.
+
+---
+
+## Option B — GitHub Actions (auto-deploy on push)
+
+Add these secrets in GitHub → `martinoh0715/pmory-backend` → Settings → Secrets:
+
+| Secret | Value |
+|--------|-------|
+| `AWS_ACCESS_KEY_ID` | IAM user access key |
+| `AWS_SECRET_ACCESS_KEY` | IAM secret |
+| `LAMBDA_FUNCTION_NAME` | Your Lambda function name |
+| `OPENAI_API_KEY` | OpenAI key (build + runtime) |
+| `ANTHROPIC_API_KEY` | Anthropic key |
+
+IAM permissions needed: `ecr:*` (or push/pull), `lambda:UpdateFunctionCode`, `lambda:UpdateFunctionConfiguration`, `lambda:GetFunction`.
+
+Then run **Actions → Deploy Lambda → Run workflow**, or push to `main`.
+
+---
+
+## Option C — Local test before deploy
+
+```bash
+cp .env.example .env   # fill in keys
+docker compose up --build
+```
+
+In another terminal:
+
+```bash
+# Lambda RIE listens on 8080 inside container; compose maps to 8000
+curl -X POST http://localhost:8000/2015-03-31/functions/function/invocations \
+  -H "Content-Type: application/json" \
+  -d '{"requestContext":{"http":{"method":"POST","path":"/api/chat"}},"body":"{\"message\":\"Hello\"}"}'
+```
+
+Or run natively:
+
+```bash
+pip install -r requirements.txt
+python scripts/build_index.py
+uvicorn app.main:app --reload --port 8000
+curl -X POST http://localhost:8000/api/chat -H "Content-Type: application/json" -d '{"message":"What is RICE?"}'
+```
+
+---
+
+## Lambda settings checklist
+
+| Setting | Value |
+|---------|-------|
+| Package type | Container image |
+| Memory | 1536 MB (minimum 1024) |
+| Timeout | 30 seconds |
+| Handler | `app.main.handler` (set by Dockerfile CMD) |
+| Env vars | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `CHROMA_PATH=/var/task/chroma_db` |
+| Function URL | CORS enabled, auth NONE (same as before) |
+
+---
+
+## Troubleshooting
+
+| Error | Fix |
+|-------|-----|
+| `Vector store not found` | Rebuild image with `OPENAI_API_KEY` build arg so `build_index.py` runs |
+| `model not found` | Set `CHAT_MODEL=claude-3-5-sonnet-latest` on Lambda |
+| `503 Knowledge base not initialized` | Chroma index empty — rebuild Docker image |
+| CORS errors | Function URL CORS should allow `*` (already in FastAPI middleware) |
+
+---
+
+## Updating knowledge
+
+1. Edit files in `knowledge/`
+2. Re-run `./scripts/deploy.sh` (rebuilds index inside Docker)
+
+No frontend changes required if the Function URL stays the same.
