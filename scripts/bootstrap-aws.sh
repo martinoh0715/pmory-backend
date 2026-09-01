@@ -48,17 +48,42 @@ echo "==> Building Docker image (linux/amd64 for Lambda)..."
 docker build --platform linux/amd64 --build-arg OPENAI_API_KEY="$OPENAI_API_KEY" -t "${ECR_REPOSITORY}:${IMAGE_TAG}" .
 
 echo "==> Ensuring ECR repository..."
-if ! aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" --region "$AWS_REGION" >/dev/null 2>&1; then
-  if ! aws ecr create-repository --repository-name "$ECR_REPOSITORY" --region "$AWS_REGION" 2>/dev/null; then
-    echo ""
-    echo "ERROR: Cannot create ECR repository '$ECR_REPOSITORY'."
-    echo "  Attach AmazonEC2ContainerRegistryPowerUser to user pmory-deploy,"
-    echo "  or create the repo in AWS Console (ECR → Create repository → pmory-rag),"
-    echo "  or ask an admin to allow ecr:CreateRepository in your permissions boundary."
-    echo "  See scripts/pmory-deploy-iam-policy.json and DEPLOY.md"
+ECR_DESCRIBE_ERR=$(mktemp)
+if aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" --region "$AWS_REGION" >/dev/null 2>"$ECR_DESCRIBE_ERR"; then
+  echo "    Repository exists: $ECR_REPOSITORY"
+elif grep -q RepositoryNotFoundException "$ECR_DESCRIBE_ERR" 2>/dev/null; then
+  echo "    Creating repository: $ECR_REPOSITORY"
+  if ! aws ecr create-repository --repository-name "$ECR_REPOSITORY" --region "$AWS_REGION"; then
+    rm -f "$ECR_DESCRIBE_ERR"
     exit 1
   fi
+else
+  cat "$ECR_DESCRIBE_ERR" >&2
+  rm -f "$ECR_DESCRIBE_ERR"
+  echo ""
+  echo "=============================================="
+  echo "  ECR access blocked for user pmory-deploy"
+  echo "=============================================="
+  echo ""
+  echo "Your IAM user has a permissions boundary that blocks ECR."
+  echo "Fix in AWS Console (log in as account root/admin):"
+  echo ""
+  echo "  1. ECR → Create repository → name: pmory-rag"
+  echo "  2. IAM → Users → pmory-deploy → Permissions boundary"
+  echo "     → Edit → allow ECR + Lambda (or remove boundary)"
+  echo "  3. IAM → Users → pmory-deploy → Add permissions"
+  echo "     → AmazonEC2ContainerRegistryPowerUser"
+  echo "     → AWSLambda_FullAccess"
+  echo ""
+  echo "Or run bootstrap once with admin credentials:"
+  echo "  aws configure --profile admin    # use root/admin access key"
+  echo "  AWS_PROFILE=admin ./scripts/bootstrap-aws.sh"
+  echo ""
+  echo "Then verify: aws ecr describe-repositories --repository-names pmory-rag"
+  echo "=============================================="
+  exit 1
 fi
+rm -f "$ECR_DESCRIBE_ERR"
 
 aws ecr get-login-password --region "$AWS_REGION" \
   | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
