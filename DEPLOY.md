@@ -159,7 +159,7 @@ curl -X POST http://localhost:8000/api/chat -H "Content-Type: application/json" 
 
 | Error | Fix |
 |-------|-----|
-| `can't find Rust compiler` / `linker cc not found` during `docker build` on Mac | Build for Lambda's architecture: `docker build --platform linux/amd64 ...` (already set in `scripts/bootstrap-aws.sh`) |
+| `can't find Rust compiler` during `docker build` | Pin `tiktoken==0.8.0` (newer releases may be source-only) and build with `--platform linux/amd64` |
 | `Vector store not found` | Rebuild image with `OPENAI_API_KEY` build arg so `build_index.py` runs |
 | `model not found` | Set `CHAT_MODEL=claude-3-5-sonnet-latest` on Lambda |
 | `503 Knowledge base not initialized` | Chroma index empty — rebuild Docker image |
