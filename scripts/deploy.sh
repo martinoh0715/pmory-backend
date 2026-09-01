@@ -40,12 +40,24 @@ echo "==> Waiting for Lambda update..."
 aws lambda wait function-updated --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION"
 
 echo "==> Setting environment variables..."
+ENV_FILE=$(mktemp)
+cat > "$ENV_FILE" <<EOF
+{
+  "Variables": {
+    "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
+    "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+    "CHAT_MODEL": "${CHAT_MODEL:-claude-3-5-sonnet-latest}",
+    "CHROMA_PATH": "/var/task/chroma_db"
+  }
+}
+EOF
 aws lambda update-function-configuration \
   --function-name "$LAMBDA_FUNCTION_NAME" \
   --region "$AWS_REGION" \
-  --environment "Variables={ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY},OPENAI_API_KEY=${OPENAI_API_KEY},CHAT_MODEL=${CHAT_MODEL:-claude-3-5-sonnet-latest},CHROMA_PATH=/var/task/chroma_db}" \
+  --environment "file://${ENV_FILE}" \
   --timeout 30 \
   --memory-size 1536
+rm -f "$ENV_FILE"
 
 echo "==> Done. Test with:"
 FUNCTION_URL=$(aws lambda get-function-url-config --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION" --query FunctionUrl --output text 2>/dev/null || echo "(enable Function URL in console)")

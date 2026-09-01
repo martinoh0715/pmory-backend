@@ -1,12 +1,34 @@
 # Deploy PMory RAG Backend to AWS Lambda
 
-Your website already calls this Function URL:
+## New AWS account? Start here
 
-```
-https://6zvr36ftm5cfajwvxscn73zhzi0txfdo.lambda-url.us-east-1.on.aws/api/chat
+Your old Function URL (`6zvr36ftm5...`) is gone with the old account. On a **new account**, run the bootstrap script once:
+
+```bash
+cd pmory-backend
+cp .env.example .env          # add OPENAI_API_KEY + ANTHROPIC_API_KEY
+export $(grep -v '^#' .env | xargs)
+
+aws configure                 # new account access key + secret, region us-east-1
+
+chmod +x scripts/bootstrap-aws.sh
+./scripts/bootstrap-aws.sh
 ```
 
-If you **update the existing Lambda function** behind that URL, you do **not** need to change `pmory_website`.
+The script prints your **new Function URL**. Paste it into `pmory_website/index.html`:
+
+```javascript
+const CHAT_API_URL = 'https://YOUR-NEW-URL.lambda-url.us-east-1.on.aws/api/chat';
+```
+
+**Before running bootstrap**, create an IAM access key:
+AWS Console → IAM → Users → your user → Security credentials → Create access key → CLI use.
+
+---
+
+## Existing Lambda? Use deploy.sh
+
+If you already ran bootstrap (or have a Lambda function), use `scripts/deploy.sh` to push code updates.
 
 ---
 

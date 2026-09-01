@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+# First-time setup on a NEW AWS account: IAM role, ECR, Lambda, Function URL
+# Run once, then use scripts/deploy.sh for updates.
+set -euo pipefail
+
+: "${AWS_REGION:=us-east-1}"
+: "${LAMBDA_FUNCTION_NAME:=pmory-chat-api}"
+: "${ECR_REPOSITORY:=pmory-rag}"
+: "${IAM_ROLE_NAME:=pmory-lambda-execution-role}"
+: "${OPENAI_API_KEY:?Set OPENAI_API_KEY}"
+: "${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
+
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+ECR_URI="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}"
+IMAGE_TAG="${IMAGE_TAG:-latest}"
+ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${IAM_ROLE_NAME}"
+
+echo "==> AWS Account: $ACCOUNT_ID | Region: $AWS_REGION"
+
+# --- IAM role for Lambda ---
+if ! aws iam get-role --role-name "$IAM_ROLE_NAME" >/dev/null 2>&1; then
+  echo "==> Creating IAM role: $IAM_ROLE_NAME"
+  aws iam create-role \
+    --role-name "$IAM_ROLE_NAME" \
+    --assume-role-policy-document '{
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Allow",
+        "Principal": { "Service": "lambda.amazonaws.com" },
+        "Action": "sts:AssumeRole"
+      }]
+    }'
+  aws iam attach-role-policy \
+    --role-name "$IAM_ROLE_NAME" \
+    --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  echo "    Waiting 15s for IAM role propagation..."
+  sleep 15
+else
+  echo "==> IAM role already exists: $IAM_ROLE_NAME"
+fi
+
+# --- Build & push image ---
+echo "==> Building Docker image..."
+docker build --build-arg OPENAI_API_KEY="$OPENAI_API_KEY" -t "${ECR_REPOSITORY}:${IMAGE_TAG}" .
+
+echo "==> Ensuring ECR repository..."
+aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" --region "$AWS_REGION" 2>/dev/null \
+  || aws ecr create-repository --repository-name "$ECR_REPOSITORY" --region "$AWS_REGION"
+
+aws ecr get-login-password --region "$AWS_REGION" \
+  | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+docker tag "${ECR_REPOSITORY}:${IMAGE_TAG}" "${ECR_URI}:${IMAGE_TAG}"
+docker push "${ECR_URI}:${IMAGE_TAG}"
+
+ENV_FILE=$(mktemp)
+cat > "$ENV_FILE" <<EOF
+{
+  "Variables": {
+    "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
+    "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+    "CHAT_MODEL": "${CHAT_MODEL:-claude-3-5-sonnet-latest}",
+    "CHROMA_PATH": "/var/task/chroma_db"
+  }
+}
+EOF
+
+# --- Lambda function ---
+if aws lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+  echo "==> Lambda exists — updating code and config..."
+  aws lambda update-function-code \
+    --function-name "$LAMBDA_FUNCTION_NAME" \
+    --image-uri "${ECR_URI}:${IMAGE_TAG}" \
+    --region "$AWS_REGION"
+  aws lambda wait function-updated --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION"
+  aws lambda update-function-configuration \
+    --function-name "$LAMBDA_FUNCTION_NAME" \
+    --region "$AWS_REGION" \
+    --environment "file://${ENV_FILE}" \
+    --timeout 30 \
+    --memory-size 1536
+else
+  echo "==> Creating Lambda function: $LAMBDA_FUNCTION_NAME"
+  aws lambda create-function \
+    --function-name "$LAMBDA_FUNCTION_NAME" \
+    --package-type Image \
+    --code "ImageUri=${ECR_URI}:${IMAGE_TAG}" \
+    --role "$ROLE_ARN" \
+    --region "$AWS_REGION" \
+    --timeout 30 \
+    --memory-size 1536 \
+    --environment "file://${ENV_FILE}"
+  aws lambda wait function-active --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION"
+fi
+
+rm -f "$ENV_FILE"
+
+# --- Function URL ---
+if aws lambda get-function-url-config --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+  echo "==> Function URL already exists"
+else
+  echo "==> Creating Function URL (public, CORS open)..."
+  aws lambda create-function-url-config \
+    --function-name "$LAMBDA_FUNCTION_NAME" \
+    --region "$AWS_REGION" \
+    --auth-type NONE \
+    --cors '{"AllowOrigins":["*"],"AllowMethods":["*"],"AllowHeaders":["*"],"MaxAge":86400}'
+
+  aws lambda add-permission \
+    --function-name "$LAMBDA_FUNCTION_NAME" \
+    --region "$AWS_REGION" \
+    --statement-id FunctionURLAllowPublicAccess \
+    --action lambda:InvokeFunctionUrl \
+    --principal "*" \
+    --function-url-auth-type NONE 2>/dev/null || true
+fi
+
+FUNCTION_URL=$(aws lambda get-function-url-config \
+  --function-name "$LAMBDA_FUNCTION_NAME" \
+  --region "$AWS_REGION" \
+  --query FunctionUrl --output text)
+
+echo ""
+echo "=============================================="
+echo "  PMory chat API is ready!"
+echo "=============================================="
+echo ""
+echo "Function URL:  ${FUNCTION_URL}"
+echo "Chat endpoint: ${FUNCTION_URL}api/chat"
+echo ""
+echo "Test:"
+echo "  curl -X POST '${FUNCTION_URL}api/chat' \\"
+echo "    -H 'Content-Type: application/json' \\"
+echo "    -d '{\"message\":\"What Emory courses for PM?\"}'"
+echo ""
+echo "Update pmory_website/index.html:"
+echo "  const CHAT_API_URL = '${FUNCTION_URL}api/chat';"
+echo ""
+echo "Future deploys: export LAMBDA_FUNCTION_NAME=${LAMBDA_FUNCTION_NAME} && ./scripts/deploy.sh"
+echo "=============================================="
