@@ -172,7 +172,7 @@ curl -X POST http://localhost:8000/api/chat -H "Content-Type: application/json" 
 
 | Error | Fix |
 |-------|-----|
-| `image manifest ... is not supported` on Lambda create | Rebuild with `--provenance=false --sbom=false` (already in deploy scripts). Docker Desktop attestations use OCI format Lambda rejects. |
+| `403 Forbidden` on Function URL | Run `./scripts/fix-function-url.sh` — public invoke permission may be missing |
 | `ecr:CreateRepository` AccessDenied | Attach `AmazonEC2ContainerRegistryPowerUser` or see `scripts/pmory-deploy-iam-policy.json`. If a permissions boundary is set, an admin must allow ECR there too. |
 | `Vector store not found` | Rebuild image with `OPENAI_API_KEY` build arg so `build_index.py` runs |
 | `model not found` | Set `CHAT_MODEL=claude-3-5-sonnet-latest` on Lambda |

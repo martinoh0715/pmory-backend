@@ -166,7 +166,8 @@ else
     --statement-id FunctionURLAllowPublicAccess \
     --action lambda:InvokeFunctionUrl \
     --principal "*" \
-    --function-url-auth-type NONE 2>/dev/null || true
+    --function-url-auth-type NONE \
+    --output text --query Statement 2>/dev/null || echo "    Public invoke permission already set."
 fi
 
 FUNCTION_URL=$("${AWS[@]}" lambda get-function-url-config \
