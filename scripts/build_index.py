@@ -11,6 +11,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+import app.sqlite_patch  # noqa: E402, F401 — must run before Chroma imports
+
 from app.config import CHROMA_DIR, KNOWLEDGE_DIR  # noqa: E402
 from app.rag.ingest import build_vector_store, load_knowledge_documents  # noqa: E402
 

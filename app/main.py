@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import app.sqlite_patch  # noqa: F401 — must run before Chroma imports
+
 import logging
 
 from fastapi import FastAPI, HTTPException
