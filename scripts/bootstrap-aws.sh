@@ -3,6 +3,9 @@
 # Run once, then use scripts/deploy.sh for updates.
 set -euo pipefail
 
+# Avoid AWS CLI opening `less` and pausing the script mid-deploy
+export AWS_PAGER=""
+
 : "${AWS_REGION:=us-east-1}"
 : "${LAMBDA_FUNCTION_NAME:=pmory-chat-api}"
 : "${ECR_REPOSITORY:=pmory-rag}"

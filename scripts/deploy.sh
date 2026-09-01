@@ -3,6 +3,8 @@
 # Prerequisites: aws cli, docker, OPENAI_API_KEY, ANTHROPIC_API_KEY
 set -euo pipefail
 
+export AWS_PAGER=""
+
 : "${AWS_REGION:=us-east-1}"
 : "${LAMBDA_FUNCTION_NAME:?Set LAMBDA_FUNCTION_NAME to your existing chat Lambda}"
 : "${ECR_REPOSITORY:=pmory-rag}"
