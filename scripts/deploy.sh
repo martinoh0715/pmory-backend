@@ -15,6 +15,8 @@ IMAGE_TAG="${IMAGE_TAG:-latest}"
 
 echo "==> Building Docker image (linux/amd64, embeds Chroma index)..."
 docker build --platform linux/amd64 \
+  --provenance=false \
+  --sbom=false \
   --build-arg OPENAI_API_KEY="$OPENAI_API_KEY" \
   -t "${ECR_REPOSITORY}:${IMAGE_TAG}" .
 

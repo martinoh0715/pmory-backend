@@ -45,7 +45,12 @@ fi
 
 # --- Build & push image ---
 echo "==> Building Docker image (linux/amd64 for Lambda)..."
-docker build --platform linux/amd64 --build-arg OPENAI_API_KEY="$OPENAI_API_KEY" -t "${ECR_REPOSITORY}:${IMAGE_TAG}" .
+# Lambda requires Docker V2 manifest — disable BuildKit attestations (OCI index).
+docker build --platform linux/amd64 \
+  --provenance=false \
+  --sbom=false \
+  --build-arg OPENAI_API_KEY="$OPENAI_API_KEY" \
+  -t "${ECR_REPOSITORY}:${IMAGE_TAG}" .
 
 echo "==> Ensuring ECR repository..."
 ECR_DESCRIBE_ERR=$(mktemp)
