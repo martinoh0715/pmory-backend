@@ -50,8 +50,9 @@ cat > "$ENV_FILE" <<EOF
   "Variables": {
     "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
     "OPENAI_API_KEY": "${OPENAI_API_KEY}",
-    "CHAT_MODEL": "${CHAT_MODEL:-claude-sonnet-4-5}",
-    "CHROMA_PATH": "/var/task/chroma_db"
+    "CHAT_MODEL": "${CHAT_MODEL:-claude-sonnet-5}",
+    "CHROMA_PATH": "/var/task/chroma_db",
+    "ANONYMIZED_TELEMETRY": "false"
   }
 }
 EOF
@@ -59,7 +60,7 @@ aws lambda update-function-configuration \
   --function-name "$LAMBDA_FUNCTION_NAME" \
   --region "$AWS_REGION" \
   --environment "file://${ENV_FILE}" \
-  --timeout 30 \
+  --timeout 60 \
   --memory-size 1536
 rm -f "$ENV_FILE"
 

@@ -175,7 +175,7 @@ curl -X POST http://localhost:8000/api/chat -H "Content-Type: application/json" 
 | `403 Forbidden` on Function URL | Run `./scripts/fix-function-url.sh` — needs both `InvokeFunctionUrl` and `InvokeFunction` public permissions |
 | `ecr:CreateRepository` AccessDenied | Attach `AmazonEC2ContainerRegistryPowerUser` or see `scripts/pmory-deploy-iam-policy.json`. If a permissions boundary is set, an admin must allow ECR there too. |
 | `Vector store not found` | Rebuild image with `OPENAI_API_KEY` build arg so `build_index.py` runs |
-| `model not found` | Set `CHAT_MODEL=claude-sonnet-4-5` on Lambda |
+| `model not found` | Set `CHAT_MODEL=claude-sonnet-5` on Lambda |
 | `unsupported version of sqlite3` during Docker build or Lambda cold start | `pysqlite3-binary` is bundled; rebuild image after pulling latest |
 | CORS errors | Function URL CORS should allow `*` (already in FastAPI middleware) |
 

@@ -107,8 +107,9 @@ cat > "$ENV_FILE" <<EOF
   "Variables": {
     "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
     "OPENAI_API_KEY": "${OPENAI_API_KEY}",
-    "CHAT_MODEL": "${CHAT_MODEL:-claude-sonnet-4-5}",
-    "CHROMA_PATH": "/var/task/chroma_db"
+    "CHAT_MODEL": "${CHAT_MODEL:-claude-sonnet-5}",
+    "CHROMA_PATH": "/var/task/chroma_db",
+    "ANONYMIZED_TELEMETRY": "false"
   }
 }
 EOF
@@ -126,7 +127,7 @@ if "${AWS[@]}" lambda get-function --function-name "$LAMBDA_FUNCTION_NAME" --reg
     --function-name "$LAMBDA_FUNCTION_NAME" \
     --region "$AWS_REGION" \
     --environment "file://${ENV_FILE}" \
-    --timeout 30 \
+    --timeout 60 \
     --memory-size 1536 \
     --output text --query FunctionArn >/dev/null
   echo "    Lambda updated."
@@ -138,7 +139,7 @@ else
     --code "ImageUri=${ECR_URI}:${IMAGE_TAG}" \
     --role "$ROLE_ARN" \
     --region "$AWS_REGION" \
-    --timeout 30 \
+    --timeout 60 \
     --memory-size 1536 \
     --environment "file://${ENV_FILE}" \
     --output text --query FunctionArn >/dev/null

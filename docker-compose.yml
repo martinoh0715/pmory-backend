@@ -10,6 +10,6 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       CHROMA_PATH: /var/task/chroma_db
-      CHAT_MODEL: ${CHAT_MODEL:-claude-sonnet-4-5}
+      CHAT_MODEL: ${CHAT_MODEL:-claude-sonnet-5}
     entrypoint: []
     command: ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
