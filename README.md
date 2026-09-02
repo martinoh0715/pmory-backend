@@ -22,12 +22,18 @@ app/
   main.py          # FastAPI routes + Lambda handler
   config.py        # Environment configuration
   prompts.py       # System prompt
+  jobs/
+    fetch.py       # Greenhouse / Lever PM job sync
   rag/
     ingest.py      # Document loading + index build
     chain.py       # Retrieval + generation chain
+jobs/
+  companies.json   # Boards to crawl
+  openings.json    # Cached openings (refreshed by script / image build)
 knowledge/         # Source documents (markdown)
 scripts/
   build_index.py   # Build Chroma index locally or in Docker
+  fetch_jobs.py    # Refresh jobs/openings.json
 chroma_db/         # Generated vector store (gitignored)
 legacy/            # Old Node.js Lambda handler
 ```
@@ -91,6 +97,26 @@ Response (compatible with existing PMory frontend):
 }
 ```
 
+## Job Alert (Greenhouse / Lever)
+
+Openings are pulled from public job boards listed in `jobs/companies.json`, filtered to PM-ish titles, and written to `jobs/openings.json`.
+
+```bash
+python scripts/fetch_jobs.py
+# → jobs/openings.json
+
+curl http://localhost:8000/api/jobs
+curl "http://localhost:8000/api/jobs?status=all"
+```
+
+`POST /api/jobs/refresh?token=...` re-fetches at runtime (on Lambda, writes under `/tmp` for that instance). Prefer refreshing in CI/deploy so openings are baked into the image.
+
+Add companies by appending to `jobs/companies.json`:
+
+```json
+{"name": "Notion", "source": "greenhouse", "board": "notion"}
+```
+
 ## Updating knowledge
 
 1. Edit or add markdown files in `knowledge/`
@@ -106,3 +132,4 @@ Response (compatible with existing PMory frontend):
 | `CHAT_MODEL` | No | Anthropic model ID |
 | `CHROMA_PATH` | No | Path to persisted Chroma DB |
 | `RETRIEVAL_K` | No | Number of chunks to retrieve (default 4) |
+| `JOBS_REFRESH_TOKEN` | No | Shared secret for `POST /api/jobs/refresh` |

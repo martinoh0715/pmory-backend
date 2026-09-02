@@ -104,9 +104,20 @@ chmod +x scripts/deploy.sh
 curl -X POST "https://cjrhfzkkxxi6qvhwbt7pc2wosm0azgfk.lambda-url.us-east-1.on.aws/api/chat" \
   -H "Content-Type: application/json" \
   -d '{"message":"What Emory courses should I take for PM?"}'
+
+curl "https://cjrhfzkkxxi6qvhwbt7pc2wosm0azgfk.lambda-url.us-east-1.on.aws/api/jobs"
 ```
 
-Expected: JSON with `"response"`, `"knowledge_used": true`, and `"sources"` listing markdown files.
+Expected chat: JSON with `"response"`, `"knowledge_used": true`, and `"sources"` listing markdown files.
+
+Expected jobs: JSON with `"count"`, `"updatedAt"`, and a `"jobs"` array of PM openings. Docker build runs `scripts/fetch_jobs.py` so openings are fresh in the image.
+
+Update the website if the Function URL changed:
+
+```javascript
+const CHAT_API_URL = 'https://YOUR-URL.lambda-url.us-east-1.on.aws/api/chat';
+const JOBS_API_URL = 'https://YOUR-URL.lambda-url.us-east-1.on.aws/api/jobs';
+```
 
 ---
 
@@ -187,3 +198,12 @@ curl -X POST http://localhost:8000/api/chat -H "Content-Type: application/json" 
 2. Re-run `./scripts/deploy.sh` (rebuilds index inside Docker)
 
 No frontend changes required if the Function URL stays the same.
+
+## Refreshing job openings
+
+```bash
+python scripts/fetch_jobs.py   # updates jobs/openings.json
+./scripts/deploy.sh            # bakes openings into the Lambda image
+```
+
+Or rely on the Docker build step (`RUN python scripts/fetch_jobs.py`). Optional: enable `.github/workflows/refresh-jobs.yml` to commit fresh `openings.json` on a schedule.

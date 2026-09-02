@@ -14,3 +14,7 @@ CHAT_MODEL = os.environ.get("CHAT_MODEL", "claude-sonnet-5")
 RETRIEVAL_K = int(os.environ.get("RETRIEVAL_K", "4"))
 # Chroma returns L2 distance; lower = more similar. Tune if needed.
 MAX_DISTANCE_FOR_KNOWLEDGE = float(os.environ.get("MAX_DISTANCE_FOR_KNOWLEDGE", "1.2"))
+
+# Optional shared secret for POST /api/jobs/refresh (?token=...)
+JOBS_REFRESH_TOKEN = os.environ.get("JOBS_REFRESH_TOKEN", "")
+JOBS_DIR = Path(os.environ.get("JOBS_DIR", BASE_DIR / "jobs"))

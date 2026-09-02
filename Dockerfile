@@ -10,6 +10,7 @@ RUN pip install --upgrade pip setuptools wheel && \
 
 COPY app ${LAMBDA_TASK_ROOT}/app
 COPY knowledge ${LAMBDA_TASK_ROOT}/knowledge
+COPY jobs ${LAMBDA_TASK_ROOT}/jobs
 COPY scripts ${LAMBDA_TASK_ROOT}/scripts
 
 # Build vector index at image build time (requires OPENAI_API_KEY build arg)
@@ -19,6 +20,9 @@ ENV CHROMA_PATH=${LAMBDA_TASK_ROOT}/chroma_db
 ENV KNOWLEDGE_DIR=${LAMBDA_TASK_ROOT}/knowledge
 ENV ANONYMIZED_TELEMETRY=false
 ENV CHROMA_TELEMETRY=false
+
+# Refresh Greenhouse/Lever openings into the image (network at build time)
+RUN python scripts/fetch_jobs.py || echo "WARNING: job fetch failed — using committed openings.json if present"
 
 RUN if [ -n "$OPENAI_API_KEY" ]; then python scripts/build_index.py --output ${LAMBDA_TASK_ROOT}/chroma_db; \
     else echo "WARNING: OPENAI_API_KEY not set — skipping index build"; mkdir -p ${LAMBDA_TASK_ROOT}/chroma_db; fi

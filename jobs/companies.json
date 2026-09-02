@@ -1,0 +1,36 @@
+{
+  "title_keywords": [
+    "product manager",
+    "product management",
+    "associate product",
+    "apm",
+    "product owner",
+    "product lead",
+    "group product manager",
+    "senior product manager",
+    "junior product",
+    "product intern"
+  ],
+  "exclude_keywords": [
+    "software engineer",
+    "account executive",
+    "sales development",
+    "recruiter"
+  ],
+  "companies": [
+    {"name": "Stripe", "source": "greenhouse", "board": "stripe"},
+    {"name": "Airbnb", "source": "greenhouse", "board": "airbnb"},
+    {"name": "Discord", "source": "greenhouse", "board": "discord"},
+    {"name": "Coinbase", "source": "greenhouse", "board": "coinbase"},
+    {"name": "Databricks", "source": "greenhouse", "board": "databricks"},
+    {"name": "Cloudflare", "source": "greenhouse", "board": "cloudflare"},
+    {"name": "Twilio", "source": "greenhouse", "board": "twilio"},
+    {"name": "Figma", "source": "greenhouse", "board": "figma"},
+    {"name": "Asana", "source": "greenhouse", "board": "asana"},
+    {"name": "Airtable", "source": "greenhouse", "board": "airtable"},
+    {"name": "Duolingo", "source": "greenhouse", "board": "duolingo"},
+    {"name": "Reddit", "source": "greenhouse", "board": "reddit"},
+    {"name": "Spotify", "source": "lever", "board": "spotify"},
+    {"name": "Palantir", "source": "lever", "board": "palantir"}
+  ]
+}
