@@ -171,6 +171,10 @@ fi
   --function-name "$LAMBDA_FUNCTION_NAME" \
   --region "$AWS_REGION" \
   --statement-id FunctionURLAllowPublicAccess 2>/dev/null || true
+"${AWS[@]}" lambda remove-permission \
+  --function-name "$LAMBDA_FUNCTION_NAME" \
+  --region "$AWS_REGION" \
+  --statement-id FunctionURLAllowPublicInvoke 2>/dev/null || true
 "${AWS[@]}" lambda add-permission \
   --function-name "$LAMBDA_FUNCTION_NAME" \
   --region "$AWS_REGION" \
@@ -179,7 +183,14 @@ fi
   --principal "*" \
   --function-url-auth-type NONE \
   --output text --query Statement >/dev/null
-echo "    Public Function URL invoke permission set."
+"${AWS[@]}" lambda add-permission \
+  --function-name "$LAMBDA_FUNCTION_NAME" \
+  --region "$AWS_REGION" \
+  --statement-id FunctionURLAllowPublicInvoke \
+  --action lambda:InvokeFunction \
+  --principal "*" \
+  --output text --query Statement >/dev/null
+echo "    Public Function URL permissions set (InvokeFunctionUrl + InvokeFunction)."
 
 FUNCTION_URL=$("${AWS[@]}" lambda get-function-url-config \
   --function-name "$LAMBDA_FUNCTION_NAME" \

@@ -68,7 +68,7 @@ export ANTHROPIC_API_KEY=...
 ./scripts/deploy.sh
 ```
 
-Your existing Function URL (`6zvr36ftm5cfajwvxscn73zhzi0txfdo.lambda-url.us-east-1.on.aws`) can stay the same — just update the Lambda function behind it.
+After bootstrap, use the Function URL printed by the script (e.g. `https://….lambda-url.us-east-1.on.aws/api/chat`). Update `pmory_website/index.html` `CHAT_API_URL` to match.
 
 ## API contract
 

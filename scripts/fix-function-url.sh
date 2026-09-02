@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Ensure Lambda Function URL allows public access (fixes 403 Forbidden)
+# AuthType NONE requires BOTH InvokeFunctionUrl AND InvokeFunction.
 set -euo pipefail
 
 export AWS_PAGER=""
@@ -25,15 +26,17 @@ echo "==> Forcing AuthType=NONE + open CORS..."
   --output text --query AuthType
 
 echo ""
-echo "==> Replacing public invoke permission..."
-# Remove stale/wrong statement if present, then add a correct one.
-"${AWS[@]}" lambda remove-permission \
-  --function-name "$LAMBDA_FUNCTION_NAME" \
-  --region "$AWS_REGION" \
-  --statement-id FunctionURLAllowPublicAccess 2>/dev/null \
-  && echo "    Removed old FunctionURLAllowPublicAccess" \
-  || echo "    No existing FunctionURLAllowPublicAccess to remove"
+echo "==> Replacing public invoke permissions..."
+for SID in FunctionURLAllowPublicAccess FunctionURLAllowPublicInvoke; do
+  "${AWS[@]}" lambda remove-permission \
+    --function-name "$LAMBDA_FUNCTION_NAME" \
+    --region "$AWS_REGION" \
+    --statement-id "$SID" 2>/dev/null \
+    && echo "    Removed $SID" \
+    || echo "    No existing $SID"
+done
 
+# Required for Function URL auth layer
 "${AWS[@]}" lambda add-permission \
   --function-name "$LAMBDA_FUNCTION_NAME" \
   --region "$AWS_REGION" \
@@ -42,10 +45,20 @@ echo "==> Replacing public invoke permission..."
   --principal "*" \
   --function-url-auth-type NONE \
   --output text --query Statement >/dev/null
-echo "    Added FunctionURLAllowPublicAccess (InvokeFunctionUrl, AuthType NONE)"
+echo "    Added FunctionURLAllowPublicAccess (InvokeFunctionUrl)"
+
+# Required for the function to actually run via the URL (AWS docs)
+"${AWS[@]}" lambda add-permission \
+  --function-name "$LAMBDA_FUNCTION_NAME" \
+  --region "$AWS_REGION" \
+  --statement-id FunctionURLAllowPublicInvoke \
+  --action lambda:InvokeFunction \
+  --principal "*" \
+  --output text --query Statement >/dev/null
+echo "    Added FunctionURLAllowPublicInvoke (InvokeFunction)"
 
 echo ""
-echo "==> Resource policy (should include FunctionURLAllowPublicAccess):"
+echo "==> Resource policy:"
 "${AWS[@]}" lambda get-policy \
   --function-name "$LAMBDA_FUNCTION_NAME" \
   --region "$AWS_REGION" \
@@ -69,9 +82,10 @@ echo ""
 
 if [[ "$HTTP_CODE" == "403" ]]; then
   echo ""
-  echo "Still 403. Check in Console:"
-  echo "  Lambda → pmory-chat-api → Configuration → Function URL"
-  echo "  Auth type must be NONE, and Resource-based policy must allow public invoke."
+  echo "Still 403 after both permissions. Check:"
+  echo "  aws lambda get-account-setting --name FunctionURLAuthType"
+  echo "  If it returns AWS_IAM, run:"
+  echo "  aws lambda put-account-setting --name FunctionURLAuthType --value NONE"
   exit 1
 fi
 

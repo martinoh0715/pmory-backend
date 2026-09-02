@@ -101,7 +101,7 @@ chmod +x scripts/deploy.sh
 ### 6. Test
 
 ```bash
-curl -X POST "https://6zvr36ftm5cfajwvxscn73zhzi0txfdo.lambda-url.us-east-1.on.aws/api/chat" \
+curl -X POST "https://cjrhfzkkxxi6qvhwbt7pc2wosm0azgfk.lambda-url.us-east-1.on.aws/api/chat" \
   -H "Content-Type: application/json" \
   -d '{"message":"What Emory courses should I take for PM?"}'
 ```
@@ -172,7 +172,7 @@ curl -X POST http://localhost:8000/api/chat -H "Content-Type: application/json" 
 
 | Error | Fix |
 |-------|-----|
-| `403 Forbidden` on Function URL | Run `./scripts/fix-function-url.sh` — public invoke permission may be missing |
+| `403 Forbidden` on Function URL | Run `./scripts/fix-function-url.sh` — needs both `InvokeFunctionUrl` and `InvokeFunction` public permissions |
 | `ecr:CreateRepository` AccessDenied | Attach `AmazonEC2ContainerRegistryPowerUser` or see `scripts/pmory-deploy-iam-policy.json`. If a permissions boundary is set, an admin must allow ECR there too. |
 | `Vector store not found` | Rebuild image with `OPENAI_API_KEY` build arg so `build_index.py` runs |
 | `model not found` | Set `CHAT_MODEL=claude-3-5-sonnet-latest` on Lambda |
