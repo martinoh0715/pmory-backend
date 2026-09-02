@@ -19,10 +19,17 @@ logger = logging.getLogger("pmory")
 
 app = FastAPI(title="PMory AI Backend", version="2.0.0")
 
-# CORS is handled by the Lambda Function URL config only.
-# Do NOT also add FastAPI CORSMiddleware — browsers reject duplicate
-# Access-Control-Allow-Origin values (e.g. "* , https://….amplifyapp.com").
+# On Lambda, CORS is handled by the Function URL config only.
+# Locally, enable CORS so the static site on another port can call /api/jobs.
+if not os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+    from fastapi.middleware.cors import CORSMiddleware
 
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=4000)
