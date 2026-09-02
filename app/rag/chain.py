@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from langchain_anthropic import ChatAnthropic
+from anthropic import Anthropic
 from langchain_chroma import Chroma
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 
 from app.config import (
     ANTHROPIC_API_KEY,
@@ -65,29 +63,26 @@ def answer_question(question: str) -> ChatResult:
     sources = sorted({doc.metadata.get("source", "unknown") for doc in docs})
     rag_results = [doc.page_content[:240] + ("..." if len(doc.page_content) > 240 else "") for doc in docs]
 
-    # Inject context before building the template so curly braces in retrieved
-    # docs cannot break LangChain's {variable} formatting.
     system_text = SYSTEM_PROMPT.replace("{context}", context)
 
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_text),
-            ("human", "{question}"),
-        ]
-    )
-
-    llm = ChatAnthropic(
-        model=CHAT_MODEL,
-        api_key=ANTHROPIC_API_KEY,
-        max_tokens=900,
-    )
-
-    chain = prompt | llm | StrOutputParser()
+    # Call Anthropic directly — ChatAnthropic always sends temperature, which
+    # newer models (e.g. claude-sonnet-5) reject as deprecated.
+    client = Anthropic(api_key=ANTHROPIC_API_KEY)
     try:
-        response = chain.invoke({"question": question})
+        message = client.messages.create(
+            model=CHAT_MODEL,
+            max_tokens=900,
+            system=system_text,
+            messages=[{"role": "user", "content": question}],
+        )
     except Exception as exc:
-        # Anthropic/OpenAI SDK errors usually stringify to useful status + message
         raise RuntimeError(f"LLM call failed ({type(exc).__name__}): {exc}") from exc
+
+    response = "".join(
+        block.text for block in message.content if getattr(block, "type", None) == "text"
+    ).strip()
+    if not response:
+        raise RuntimeError("LLM returned an empty response")
 
     return ChatResult(
         response=response,
