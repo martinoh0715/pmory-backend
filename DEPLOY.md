@@ -232,3 +232,31 @@ jobs:
           git add jobs/openings.json
           git diff --staged --quiet || (git commit -m "chore: refresh PM job openings" && git push)
 ```
+
+## Email alerts (welcome + new jobs)
+
+Subscribers are stored in **DynamoDB** (`pmory-subscribers`). SES sends mail from `SES_FROM_EMAIL`.
+
+### One-time setup (on your Mac)
+
+```bash
+cd ~/pmory-backend && git pull
+export $(grep -v '^#' .env | xargs)
+export LAMBDA_FUNCTION_NAME=pmory-chat-api
+chmod +x scripts/setup-email.sh
+./scripts/setup-email.sh   # creates DynamoDB table + IAM SES/DDB perms
+./scripts/deploy.sh        # ships /api/subscribe + /api/unsubscribe
+```
+
+### Test (sandbox: recipient must be a verified SES identity)
+
+```bash
+curl -X POST "https://YOUR-FUNCTION-URL/api/subscribe" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"martinoh0715@gmail.com","jobAlerts":true}'
+```
+
+- `jobAlerts: true` → welcome email + future new-job emails  
+- `jobAlerts: false` → welcome email only  
+
+New-job emails fire when `POST /api/jobs/refresh` finds openings that weren’t seen before (first refresh only seeds IDs, no blast).

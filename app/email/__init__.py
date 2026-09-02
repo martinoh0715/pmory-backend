@@ -1,0 +1,1 @@
+"""PMory email alerts package."""

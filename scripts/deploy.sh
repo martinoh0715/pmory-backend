@@ -56,7 +56,13 @@ cat > "$ENV_FILE" <<EOF
     "OPENAI_API_KEY": "${OPENAI_API_KEY}",
     "CHAT_MODEL": "${CHAT_MODEL:-claude-sonnet-5}",
     "CHROMA_PATH": "/var/task/chroma_db",
-    "ANONYMIZED_TELEMETRY": "false"
+    "ANONYMIZED_TELEMETRY": "false",
+    "SES_FROM_EMAIL": "${SES_FROM_EMAIL:-martinoh0715@gmail.com}",
+    "SES_FROM_NAME": "${SES_FROM_NAME:-PMory}",
+    "SUBSCRIBERS_TABLE": "${SUBSCRIBERS_TABLE:-pmory-subscribers}",
+    "UNSUBSCRIBE_SECRET": "${UNSUBSCRIBE_SECRET:-pmory-change-me}",
+    "PUBLIC_SITE_URL": "${PUBLIC_SITE_URL:-https://main.d28vavk28l1jfd.amplifyapp.com}",
+    "AWS_REGION": "${AWS_REGION}"
   }
 }
 EOF
@@ -75,6 +81,26 @@ FUNCTION_URL=$("${AWS[@]}" lambda get-function-url-config \
   --region "$AWS_REGION" \
   --query FunctionUrl --output text 2>/dev/null || echo "(enable Function URL in console)")
 
+if [[ -n "${FUNCTION_URL}" && "${FUNCTION_URL}" != "(enable Function URL in console)" ]]; then
+  EXISTING=$("${AWS[@]}" lambda get-function-configuration \
+    --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION" \
+    --query 'Environment.Variables' --output json)
+  ENV_FILE=$(mktemp)
+  python3 - <<PY > "$ENV_FILE"
+import json
+existing = json.loads('''${EXISTING}''') or {}
+existing["PUBLIC_API_URL"] = "${FUNCTION_URL}".rstrip("/")
+print(json.dumps({"Variables": existing}))
+PY
+  "${AWS[@]}" lambda update-function-configuration \
+    --function-name "$LAMBDA_FUNCTION_NAME" \
+    --region "$AWS_REGION" \
+    --environment "file://${ENV_FILE}" >/dev/null
+  rm -f "$ENV_FILE"
+  "${AWS[@]}" lambda wait function-updated --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION"
+fi
+
 echo "==> Done. Model=${CHAT_MODEL:-claude-sonnet-5}"
 echo "Test:"
 echo "  curl -X POST '${FUNCTION_URL}api/chat' -H 'Content-Type: application/json' -d '{\"message\":\"What Emory courses for PM?\"}'"
+echo "  curl -X POST '${FUNCTION_URL}api/subscribe' -H 'Content-Type: application/json' -d '{\"email\":\"martinoh0715@gmail.com\",\"jobAlerts\":true}'"
