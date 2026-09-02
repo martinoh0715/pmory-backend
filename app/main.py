@@ -5,7 +5,6 @@ import app.sqlite_patch  # noqa: F401 — must run before Chroma imports
 import logging
 
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 from pydantic import BaseModel, Field
 
@@ -17,13 +16,9 @@ logger = logging.getLogger("pmory")
 
 app = FastAPI(title="PMory AI Backend", version="2.0.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS is handled by the Lambda Function URL config only.
+# Do NOT also add FastAPI CORSMiddleware — browsers reject duplicate
+# Access-Control-Allow-Origin values (e.g. "* , https://….amplifyapp.com").
 
 
 class ChatRequest(BaseModel):

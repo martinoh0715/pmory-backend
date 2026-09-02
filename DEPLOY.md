@@ -177,7 +177,7 @@ curl -X POST http://localhost:8000/api/chat -H "Content-Type: application/json" 
 | `Vector store not found` | Rebuild image with `OPENAI_API_KEY` build arg so `build_index.py` runs |
 | `model not found` | Set `CHAT_MODEL=claude-sonnet-5` on Lambda |
 | `unsupported version of sqlite3` during Docker build or Lambda cold start | `pysqlite3-binary` is bundled; rebuild image after pulling latest |
-| CORS errors | Function URL CORS should allow `*` (already in FastAPI middleware) |
+| CORS errors / duplicate Access-Control-Allow-Origin | CORS must be set on Function URL only — do not also use FastAPI CORSMiddleware |
 
 ---
 
