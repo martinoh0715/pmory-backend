@@ -4,6 +4,8 @@
 set -euo pipefail
 
 export AWS_PAGER=""
+export PAGER=cat
+AWS=(aws --no-cli-pager)
 
 : "${AWS_REGION:=us-east-1}"
 : "${LAMBDA_FUNCTION_NAME:?Set LAMBDA_FUNCTION_NAME to your existing chat Lambda}"
@@ -11,7 +13,7 @@ export AWS_PAGER=""
 : "${OPENAI_API_KEY:?Set OPENAI_API_KEY for embedding index build}"
 : "${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY for Lambda runtime}"
 
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+ACCOUNT_ID=$("${AWS[@]}" sts get-caller-identity --query Account --output text)
 ECR_URI="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 
@@ -23,11 +25,12 @@ docker build --platform linux/amd64 \
   -t "${ECR_REPOSITORY}:${IMAGE_TAG}" .
 
 echo "==> Ensuring ECR repository exists..."
-aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" --region "$AWS_REGION" 2>/dev/null \
-  || aws ecr create-repository --repository-name "$ECR_REPOSITORY" --region "$AWS_REGION"
+"${AWS[@]}" ecr describe-repositories --repository-names "$ECR_REPOSITORY" --region "$AWS_REGION" >/dev/null 2>&1 \
+  || "${AWS[@]}" ecr create-repository --repository-name "$ECR_REPOSITORY" --region "$AWS_REGION" \
+       --output text --query repository.repositoryName >/dev/null
 
 echo "==> Logging in to ECR..."
-aws ecr get-login-password --region "$AWS_REGION" \
+"${AWS[@]}" ecr get-login-password --region "$AWS_REGION" \
   | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
 echo "==> Pushing image..."
@@ -35,13 +38,14 @@ docker tag "${ECR_REPOSITORY}:${IMAGE_TAG}" "${ECR_URI}:${IMAGE_TAG}"
 docker push "${ECR_URI}:${IMAGE_TAG}"
 
 echo "==> Updating Lambda function..."
-aws lambda update-function-code \
+"${AWS[@]}" lambda update-function-code \
   --function-name "$LAMBDA_FUNCTION_NAME" \
   --image-uri "${ECR_URI}:${IMAGE_TAG}" \
-  --region "$AWS_REGION"
+  --region "$AWS_REGION" \
+  --output text --query FunctionArn >/dev/null
 
 echo "==> Waiting for Lambda update..."
-aws lambda wait function-updated --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION"
+"${AWS[@]}" lambda wait function-updated --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION"
 
 echo "==> Setting environment variables..."
 ENV_FILE=$(mktemp)
@@ -56,14 +60,21 @@ cat > "$ENV_FILE" <<EOF
   }
 }
 EOF
-aws lambda update-function-configuration \
+"${AWS[@]}" lambda update-function-configuration \
   --function-name "$LAMBDA_FUNCTION_NAME" \
   --region "$AWS_REGION" \
   --environment "file://${ENV_FILE}" \
   --timeout 60 \
-  --memory-size 1536
+  --memory-size 1536 \
+  --output text --query FunctionArn >/dev/null
 rm -f "$ENV_FILE"
+"${AWS[@]}" lambda wait function-updated --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION"
 
-echo "==> Done. Test with:"
-FUNCTION_URL=$(aws lambda get-function-url-config --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION" --query FunctionUrl --output text 2>/dev/null || echo "(enable Function URL in console)")
-echo "curl -X POST ${FUNCTION_URL}api/chat -H 'Content-Type: application/json' -d '{\"message\":\"What Emory courses for PM?\"}'"
+FUNCTION_URL=$("${AWS[@]}" lambda get-function-url-config \
+  --function-name "$LAMBDA_FUNCTION_NAME" \
+  --region "$AWS_REGION" \
+  --query FunctionUrl --output text 2>/dev/null || echo "(enable Function URL in console)")
+
+echo "==> Done. Model=${CHAT_MODEL:-claude-sonnet-5}"
+echo "Test:"
+echo "  curl -X POST '${FUNCTION_URL}api/chat' -H 'Content-Type: application/json' -d '{\"message\":\"What Emory courses for PM?\"}'"
