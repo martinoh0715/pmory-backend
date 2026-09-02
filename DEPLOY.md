@@ -206,4 +206,29 @@ python scripts/fetch_jobs.py   # updates jobs/openings.json
 ./scripts/deploy.sh            # bakes openings into the Lambda image
 ```
 
-Or rely on the Docker build step (`RUN python scripts/fetch_jobs.py`). Optional: enable `.github/workflows/refresh-jobs.yml` to commit fresh `openings.json` on a schedule.
+Or rely on the Docker build step (`RUN python scripts/fetch_jobs.py`).
+
+Optional daily refresh via GitHub Actions (add manually — needs a token with `workflow` scope):
+
+```yaml
+# .github/workflows/refresh-jobs.yml
+name: Refresh PM job openings
+on:
+  schedule: [{ cron: "0 15 * * *" }]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: python scripts/fetch_jobs.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add jobs/openings.json
+          git diff --staged --quiet || (git commit -m "chore: refresh PM job openings" && git push)
+```
