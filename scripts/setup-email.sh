@@ -11,18 +11,28 @@ AWS=(aws --no-cli-pager)
 
 echo "==> Creating DynamoDB table ${SUBSCRIBERS_TABLE} (if missing)..."
 if ! "${AWS[@]}" dynamodb describe-table --table-name "$SUBSCRIBERS_TABLE" --region "$AWS_REGION" >/dev/null 2>&1; then
-  "${AWS[@]}" dynamodb create-table \
+  if ! "${AWS[@]}" dynamodb create-table \
     --table-name "$SUBSCRIBERS_TABLE" \
     --attribute-definitions AttributeName=email,AttributeType=S \
     --key-schema AttributeName=email,KeyType=HASH \
     --billing-mode PAY_PER_REQUEST \
-    --region "$AWS_REGION" >/dev/null
+    --region "$AWS_REGION" >/dev/null; then
+    echo ""
+    echo "!! Could not create DynamoDB table (IAM denied)."
+    echo "   Create it in the console, then re-run this script:"
+    echo "   DynamoDB → Create table"
+    echo "   Table name: ${SUBSCRIBERS_TABLE}"
+    echo "   Partition key: email (String)"
+    echo "   Settings: Default (on-demand)"
+    echo "   Region: us-east-1"
+    echo ""
+    exit 1
+  fi
   echo "    waiting for table..."
   "${AWS[@]}" dynamodb wait table-exists --table-name "$SUBSCRIBERS_TABLE" --region "$AWS_REGION"
 else
   echo "    already exists"
 fi
-
 ACCOUNT_ID=$("${AWS[@]}" sts get-caller-identity --query Account --output text)
 ROLE_ARN=$("${AWS[@]}" lambda get-function-configuration \
   --function-name "$LAMBDA_FUNCTION_NAME" \
@@ -82,7 +92,6 @@ existing.update({
   "SUBSCRIBERS_TABLE": "${SUBSCRIBERS_TABLE}",
   "UNSUBSCRIBE_SECRET": "${UNSUB_SECRET}",
   "PUBLIC_SITE_URL": "https://main.d28vavk28l1jfd.amplifyapp.com",
-  "AWS_REGION": "${AWS_REGION}",
 })
 print(json.dumps({"Variables": existing}))
 PY

@@ -20,7 +20,7 @@ JOBS_REFRESH_TOKEN = os.environ.get("JOBS_REFRESH_TOKEN", "")
 JOBS_DIR = Path(os.environ.get("JOBS_DIR", BASE_DIR / "jobs"))
 
 # Email alerts (SES + DynamoDB)
-AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+# Note: Lambda provides AWS_REGION automatically — do not set it in function env.
 SES_FROM_EMAIL = os.environ.get("SES_FROM_EMAIL", "martinoh0715@gmail.com")
 SES_FROM_NAME = os.environ.get("SES_FROM_NAME", "PMory")
 SUBSCRIBERS_TABLE = os.environ.get("SUBSCRIBERS_TABLE", "pmory-subscribers")
@@ -33,5 +33,7 @@ PUBLIC_API_URL = os.environ.get(
     "PUBLIC_API_URL",
     "https://cjrhfzkkxxi6qvhwbt7pc2wosm0azgfk.lambda-url.us-east-1.on.aws",
 )
+# Prefer AWS_REGION (local/CLI); Lambda also injects AWS_REGION automatically.
+AWS_REGION = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or "us-east-1"
 # Local JSON fallback when DynamoDB is unavailable (dev only)
 SUBSCRIBERS_FILE = Path(os.environ.get("SUBSCRIBERS_FILE", BASE_DIR / "jobs" / "subscribers.json"))

@@ -61,8 +61,7 @@ cat > "$ENV_FILE" <<EOF
     "SES_FROM_NAME": "${SES_FROM_NAME:-PMory}",
     "SUBSCRIBERS_TABLE": "${SUBSCRIBERS_TABLE:-pmory-subscribers}",
     "UNSUBSCRIBE_SECRET": "${UNSUBSCRIBE_SECRET:-pmory-change-me}",
-    "PUBLIC_SITE_URL": "${PUBLIC_SITE_URL:-https://main.d28vavk28l1jfd.amplifyapp.com}",
-    "AWS_REGION": "${AWS_REGION}"
+    "PUBLIC_SITE_URL": "${PUBLIC_SITE_URL:-https://main.d28vavk28l1jfd.amplifyapp.com}"
   }
 }
 EOF
