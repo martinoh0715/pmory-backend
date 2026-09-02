@@ -84,7 +84,11 @@ def answer_question(question: str) -> ChatResult:
     )
 
     chain = prompt | llm | StrOutputParser()
-    response = chain.invoke({"question": question})
+    try:
+        response = chain.invoke({"question": question})
+    except Exception as exc:
+        # Anthropic/OpenAI SDK errors usually stringify to useful status + message
+        raise RuntimeError(f"LLM call failed ({type(exc).__name__}): {exc}") from exc
 
     return ChatResult(
         response=response,
