@@ -80,7 +80,6 @@ def answer_question(question: str) -> ChatResult:
         model=CHAT_MODEL,
         api_key=ANTHROPIC_API_KEY,
         max_tokens=900,
-        temperature=0.3,
     )
 
     chain = prompt | llm | StrOutputParser()
