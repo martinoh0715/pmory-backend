@@ -65,9 +65,13 @@ def answer_question(question: str) -> ChatResult:
     sources = sorted({doc.metadata.get("source", "unknown") for doc in docs})
     rag_results = [doc.page_content[:240] + ("..." if len(doc.page_content) > 240 else "") for doc in docs]
 
+    # Inject context before building the template so curly braces in retrieved
+    # docs cannot break LangChain's {variable} formatting.
+    system_text = SYSTEM_PROMPT.replace("{context}", context)
+
     prompt = ChatPromptTemplate.from_messages(
         [
-            ("system", SYSTEM_PROMPT),
+            ("system", system_text),
             ("human", "{question}"),
         ]
     )
@@ -80,7 +84,7 @@ def answer_question(question: str) -> ChatResult:
     )
 
     chain = prompt | llm | StrOutputParser()
-    response = chain.invoke({"context": context, "question": question})
+    response = chain.invoke({"question": question})
 
     return ChatResult(
         response=response,

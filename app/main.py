@@ -79,7 +79,12 @@ async def chat(body: ChatRequest):
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Chat failed")
-        raise HTTPException(status_code=500, detail="Internal server error") from exc
+        # Surface a short provider error so Function URL clients can debug
+        # without opening CloudWatch (no secrets — API keys never appear here).
+        detail = str(exc).strip() or "Internal server error"
+        if len(detail) > 400:
+            detail = detail[:400] + "…"
+        raise HTTPException(status_code=500, detail=detail) from exc
 
 
 handler = Mangum(app, lifespan="off")

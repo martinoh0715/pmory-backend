@@ -50,7 +50,7 @@ cat > "$ENV_FILE" <<EOF
   "Variables": {
     "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
     "OPENAI_API_KEY": "${OPENAI_API_KEY}",
-    "CHAT_MODEL": "${CHAT_MODEL:-claude-3-5-sonnet-latest}",
+    "CHAT_MODEL": "${CHAT_MODEL:-claude-sonnet-4-5}",
     "CHROMA_PATH": "/var/task/chroma_db"
   }
 }

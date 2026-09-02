@@ -86,7 +86,7 @@ Response (compatible with existing PMory frontend):
   "knowledge_used": true,
   "rag_results": ["..."],
   "sources": ["interview-prep.md"],
-  "ai_model": "claude-3-5-sonnet-latest",
+  "ai_model": "claude-sonnet-4-5",
   "system": "LangChain RAG + Chroma + Claude"
 }
 ```
