@@ -148,9 +148,15 @@ fi
 
 rm -f "$ENV_FILE"
 
-# --- Function URL ---
+# --- Function URL (always force public AuthType=NONE + invoke permission) ---
 if "${AWS[@]}" lambda get-function-url-config --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
-  echo "==> Function URL already exists"
+  echo "==> Function URL exists — ensuring public access (AuthType NONE)..."
+  "${AWS[@]}" lambda update-function-url-config \
+    --function-name "$LAMBDA_FUNCTION_NAME" \
+    --region "$AWS_REGION" \
+    --auth-type NONE \
+    --cors '{"AllowOrigins":["*"],"AllowMethods":["*"],"AllowHeaders":["*"],"MaxAge":86400}' \
+    --output text --query AuthType >/dev/null
 else
   echo "==> Creating Function URL (public, CORS open)..."
   "${AWS[@]}" lambda create-function-url-config \
@@ -159,16 +165,21 @@ else
     --auth-type NONE \
     --cors '{"AllowOrigins":["*"],"AllowMethods":["*"],"AllowHeaders":["*"],"MaxAge":86400}' \
     --output text --query FunctionUrl >/dev/null
-
-  "${AWS[@]}" lambda add-permission \
-    --function-name "$LAMBDA_FUNCTION_NAME" \
-    --region "$AWS_REGION" \
-    --statement-id FunctionURLAllowPublicAccess \
-    --action lambda:InvokeFunctionUrl \
-    --principal "*" \
-    --function-url-auth-type NONE \
-    --output text --query Statement 2>/dev/null || echo "    Public invoke permission already set."
 fi
+
+"${AWS[@]}" lambda remove-permission \
+  --function-name "$LAMBDA_FUNCTION_NAME" \
+  --region "$AWS_REGION" \
+  --statement-id FunctionURLAllowPublicAccess 2>/dev/null || true
+"${AWS[@]}" lambda add-permission \
+  --function-name "$LAMBDA_FUNCTION_NAME" \
+  --region "$AWS_REGION" \
+  --statement-id FunctionURLAllowPublicAccess \
+  --action lambda:InvokeFunctionUrl \
+  --principal "*" \
+  --function-url-auth-type NONE \
+  --output text --query Statement >/dev/null
+echo "    Public Function URL invoke permission set."
 
 FUNCTION_URL=$("${AWS[@]}" lambda get-function-url-config \
   --function-name "$LAMBDA_FUNCTION_NAME" \
