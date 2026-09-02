@@ -87,11 +87,11 @@ python3 - <<PY > "$ENV_FILE"
 import json, os
 existing = json.loads('''${EXISTING}''') or {}
 existing.update({
-  "SES_FROM_EMAIL": os.environ.get("SES_FROM_EMAIL", "martinoh0715@gmail.com"),
+  "SES_FROM_EMAIL": os.environ.get("SES_FROM_EMAIL", "alerts@pmory.org"),
   "SES_FROM_NAME": "PMory",
   "SUBSCRIBERS_TABLE": "${SUBSCRIBERS_TABLE}",
   "UNSUBSCRIBE_SECRET": "${UNSUB_SECRET}",
-  "PUBLIC_SITE_URL": "https://main.d28vavk28l1jfd.amplifyapp.com",
+  "PUBLIC_SITE_URL": "https://pmory.org",
 })
 print(json.dumps({"Variables": existing}))
 PY

@@ -57,11 +57,11 @@ cat > "$ENV_FILE" <<EOF
     "CHAT_MODEL": "${CHAT_MODEL:-claude-sonnet-5}",
     "CHROMA_PATH": "/var/task/chroma_db",
     "ANONYMIZED_TELEMETRY": "false",
-    "SES_FROM_EMAIL": "${SES_FROM_EMAIL:-martinoh0715@gmail.com}",
+    "SES_FROM_EMAIL": "${SES_FROM_EMAIL:-alerts@pmory.org}",
     "SES_FROM_NAME": "${SES_FROM_NAME:-PMory}",
     "SUBSCRIBERS_TABLE": "${SUBSCRIBERS_TABLE:-pmory-subscribers}",
     "UNSUBSCRIBE_SECRET": "${UNSUBSCRIBE_SECRET:-pmory-change-me}",
-    "PUBLIC_SITE_URL": "${PUBLIC_SITE_URL:-https://main.d28vavk28l1jfd.amplifyapp.com}"
+    "PUBLIC_SITE_URL": "${PUBLIC_SITE_URL:-https://pmory.org}"
   }
 }
 EOF

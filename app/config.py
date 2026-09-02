@@ -21,13 +21,13 @@ JOBS_DIR = Path(os.environ.get("JOBS_DIR", BASE_DIR / "jobs"))
 
 # Email alerts (SES + DynamoDB)
 # Note: Lambda provides AWS_REGION automatically — do not set it in function env.
-SES_FROM_EMAIL = os.environ.get("SES_FROM_EMAIL", "martinoh0715@gmail.com")
+SES_FROM_EMAIL = os.environ.get("SES_FROM_EMAIL", "alerts@pmory.org")
 SES_FROM_NAME = os.environ.get("SES_FROM_NAME", "PMory")
 SUBSCRIBERS_TABLE = os.environ.get("SUBSCRIBERS_TABLE", "pmory-subscribers")
 UNSUBSCRIBE_SECRET = os.environ.get("UNSUBSCRIBE_SECRET", "pmory-dev-unsubscribe-secret")
 PUBLIC_SITE_URL = os.environ.get(
     "PUBLIC_SITE_URL",
-    "https://main.d28vavk28l1jfd.amplifyapp.com",
+    "https://pmory.org",
 )
 PUBLIC_API_URL = os.environ.get(
     "PUBLIC_API_URL",
