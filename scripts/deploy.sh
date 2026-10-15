@@ -48,56 +48,49 @@ echo "==> Waiting for Lambda update..."
 "${AWS[@]}" lambda wait function-updated --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION"
 
 echo "==> Setting environment variables..."
+EXISTING=$("${AWS[@]}" lambda get-function-configuration \
+  --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION" \
+  --query 'Environment.Variables' --output json 2>/dev/null || echo '{}')
+FUNCTION_URL=$("${AWS[@]}" lambda get-function-url-config \
+  --function-name "$LAMBDA_FUNCTION_NAME" \
+  --region "$AWS_REGION" \
+  --query FunctionUrl --output text 2>/dev/null || echo "")
 ENV_FILE=$(mktemp)
-cat > "$ENV_FILE" <<EOF
-{
-  "Variables": {
-    "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
-    "OPENAI_API_KEY": "${OPENAI_API_KEY}",
-    "CHAT_MODEL": "${CHAT_MODEL:-claude-sonnet-5}",
-    "CHROMA_PATH": "/var/task/chroma_db",
-    "ANONYMIZED_TELEMETRY": "false",
-    "SES_FROM_EMAIL": "${SES_FROM_EMAIL:-alerts@pmory.org}",
-    "SES_FROM_NAME": "${SES_FROM_NAME:-PMory}",
-    "SUBSCRIBERS_TABLE": "${SUBSCRIBERS_TABLE:-pmory-subscribers}",
-    "UNSUBSCRIBE_SECRET": "${UNSUBSCRIBE_SECRET:-pmory-change-me}",
-    "PUBLIC_SITE_URL": "${PUBLIC_SITE_URL:-https://pmory.org}"
-  }
-}
-EOF
+python3 - <<PY > "$ENV_FILE"
+import json, os
+existing = json.loads('''${EXISTING}''') or {}
+existing.update({
+  "ANTHROPIC_API_KEY": os.environ["ANTHROPIC_API_KEY"],
+  "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
+  "CHAT_MODEL": os.environ.get("CHAT_MODEL", "claude-sonnet-5"),
+  "CHROMA_PATH": "/var/task/chroma_db",
+  "ANONYMIZED_TELEMETRY": "false",
+  "SES_FROM_EMAIL": os.environ.get("SES_FROM_EMAIL", "alerts@pmory.org"),
+  "SES_FROM_NAME": os.environ.get("SES_FROM_NAME", "PMory"),
+  "SUBSCRIBERS_TABLE": os.environ.get("SUBSCRIBERS_TABLE", "pmory-subscribers"),
+  "UNSUBSCRIBE_SECRET": os.environ.get("UNSUBSCRIBE_SECRET", existing.get("UNSUBSCRIBE_SECRET") or "pmory-change-me"),
+  "PUBLIC_SITE_URL": os.environ.get("PUBLIC_SITE_URL", "https://pmory.org"),
+})
+# Preserve schedule/storage settings unless explicitly overridden
+if os.environ.get("JOBS_S3_BUCKET"):
+    existing["JOBS_S3_BUCKET"] = os.environ["JOBS_S3_BUCKET"]
+if os.environ.get("JOBS_REFRESH_TOKEN"):
+    existing["JOBS_REFRESH_TOKEN"] = os.environ["JOBS_REFRESH_TOKEN"]
+fn_url = """${FUNCTION_URL}""".strip()
+if fn_url and fn_url != "None":
+    existing["PUBLIC_API_URL"] = fn_url.rstrip("/")
+print(json.dumps({"Variables": existing}))
+PY
 "${AWS[@]}" lambda update-function-configuration \
   --function-name "$LAMBDA_FUNCTION_NAME" \
   --region "$AWS_REGION" \
   --environment "file://${ENV_FILE}" \
-  --timeout 60 \
+  --timeout 120 \
   --memory-size 1536 \
   --output text --query FunctionArn >/dev/null
 rm -f "$ENV_FILE"
 "${AWS[@]}" lambda wait function-updated --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION"
-
-FUNCTION_URL=$("${AWS[@]}" lambda get-function-url-config \
-  --function-name "$LAMBDA_FUNCTION_NAME" \
-  --region "$AWS_REGION" \
-  --query FunctionUrl --output text 2>/dev/null || echo "(enable Function URL in console)")
-
-if [[ -n "${FUNCTION_URL}" && "${FUNCTION_URL}" != "(enable Function URL in console)" ]]; then
-  EXISTING=$("${AWS[@]}" lambda get-function-configuration \
-    --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION" \
-    --query 'Environment.Variables' --output json)
-  ENV_FILE=$(mktemp)
-  python3 - <<PY > "$ENV_FILE"
-import json
-existing = json.loads('''${EXISTING}''') or {}
-existing["PUBLIC_API_URL"] = "${FUNCTION_URL}".rstrip("/")
-print(json.dumps({"Variables": existing}))
-PY
-  "${AWS[@]}" lambda update-function-configuration \
-    --function-name "$LAMBDA_FUNCTION_NAME" \
-    --region "$AWS_REGION" \
-    --environment "file://${ENV_FILE}" >/dev/null
-  rm -f "$ENV_FILE"
-  "${AWS[@]}" lambda wait function-updated --function-name "$LAMBDA_FUNCTION_NAME" --region "$AWS_REGION"
-fi
+FUNCTION_URL=${FUNCTION_URL:-"(enable Function URL in console)"}
 
 echo "==> Done. Model=${CHAT_MODEL:-claude-sonnet-5}"
 echo "Test:"

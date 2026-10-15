@@ -161,11 +161,35 @@ def refresh_openings() -> dict[str, Any]:
         "errors": errors,
         "jobs": jobs,
     }
-    OPENINGS_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    # Prefer S3 when configured (Lambda-safe persistence); also write local when possible
+    try:
+        from app.jobs.storage import save_openings_s3, s3_enabled
+
+        if s3_enabled():
+            save_openings_s3(payload)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("S3 openings save failed: %s", exc)
+
+    try:
+        OPENINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        OPENINGS_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except OSError as exc:
+        logger.info("Local openings write skipped (%s)", exc)
     return payload
 
 
 def load_openings() -> dict[str, Any]:
+    # S3 first so daily EventBridge refreshes survive cold starts
+    try:
+        from app.jobs.storage import load_openings_s3, s3_enabled
+
+        if s3_enabled():
+            remote = load_openings_s3()
+            if remote and isinstance(remote.get("jobs"), list):
+                return remote
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("S3 openings load failed: %s", exc)
+
     if not OPENINGS_PATH.exists():
         return {"updatedAt": None, "count": 0, "errors": [], "jobs": []}
     with OPENINGS_PATH.open(encoding="utf-8") as f:

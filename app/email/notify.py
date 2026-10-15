@@ -17,6 +17,16 @@ SEEN_PATH = JOBS_DIR / "seen_job_ids.json"
 
 
 def _load_seen() -> set[str]:
+    try:
+        from app.jobs.storage import load_seen_s3, s3_enabled
+
+        if s3_enabled():
+            remote = load_seen_s3()
+            if remote is not None:
+                return remote
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("S3 seen-ids load failed: %s", exc)
+
     if not SEEN_PATH.exists():
         return set()
     try:
@@ -27,10 +37,20 @@ def _load_seen() -> set[str]:
 
 
 def _save_seen(ids: set[str]) -> None:
-    SEEN_PATH.parent.mkdir(parents=True, exist_ok=True)
-    # Keep file bounded
     trimmed = sorted(ids)[-5000:]
-    SEEN_PATH.write_text(json.dumps({"ids": trimmed}, indent=2), encoding="utf-8")
+    try:
+        from app.jobs.storage import save_seen_s3, s3_enabled
+
+        if s3_enabled():
+            save_seen_s3(set(trimmed))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("S3 seen-ids save failed: %s", exc)
+
+    try:
+        SEEN_PATH.parent.mkdir(parents=True, exist_ok=True)
+        SEEN_PATH.write_text(json.dumps({"ids": trimmed}, indent=2), encoding="utf-8")
+    except OSError as exc:
+        logger.info("Local seen-ids write skipped (%s)", exc)
 
 
 def notify_new_jobs(jobs: list[dict[str, Any]]) -> dict[str, Any]:

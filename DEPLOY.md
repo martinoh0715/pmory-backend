@@ -199,39 +199,31 @@ curl -X POST http://localhost:8000/api/chat -H "Content-Type: application/json" 
 
 No frontend changes required if the Function URL stays the same.
 
-## Refreshing job openings
+## Refreshing job openings (daily)
+
+Openings persist in **S3** (`JOBS_S3_BUCKET`). EventBridge invokes Lambda daily at **15:00 UTC**; the handler refreshes Greenhouse/Lever, writes `openings.json` to S3, and emails opted-in subscribers about brand-new roles.
+
+### One-time schedule setup
 
 ```bash
-python scripts/fetch_jobs.py   # updates jobs/openings.json
-./scripts/deploy.sh            # bakes openings into the Lambda image
+cd ~/pmory-backend && git pull
+export $(grep -v '^#' .env | xargs)
+export LAMBDA_FUNCTION_NAME=pmory-chat-api
+./scripts/deploy.sh                 # ship S3 + schedule-aware code first
+chmod +x scripts/setup-job-schedule.sh
+./scripts/setup-job-schedule.sh     # bucket + IAM + EventBridge + one refresh now
 ```
 
-Or rely on the Docker build step (`RUN python scripts/fetch_jobs.py`).
+If `CreateBucket` is denied for `pmory-deploy`, create bucket `pmory-jobs-590854470072` in the S3 console (us-east-1, block public access), then re-run `setup-job-schedule.sh`.
 
-Optional daily refresh via GitHub Actions (add manually — needs a token with `workflow` scope):
+Manual refresh anytime:
 
-```yaml
-# .github/workflows/refresh-jobs.yml
-name: Refresh PM job openings
-on:
-  schedule: [{ cron: "0 15 * * *" }]
-  workflow_dispatch:
-permissions:
-  contents: write
-jobs:
-  refresh:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.11" }
-      - run: python scripts/fetch_jobs.py
-      - run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add jobs/openings.json
-          git diff --staged --quiet || (git commit -m "chore: refresh PM job openings" && git push)
+```bash
+aws lambda invoke --function-name pmory-chat-api --cli-binary-format raw-in-base64-out \
+  --payload '{"pmory_action":"refresh_jobs"}' /tmp/out.json && cat /tmp/out.json
 ```
+
+Or: `python scripts/fetch_jobs.py && ./scripts/deploy.sh` (bakes a fallback copy into the image).
 
 ## Email alerts (welcome + new jobs)
 

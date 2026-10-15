@@ -105,6 +105,36 @@ async def get_jobs(status: str | None = "open"):
     return JobsResponse(**data)
 
 
+def run_jobs_refresh(*, notify: bool = True) -> dict:
+    """Shared refresh used by HTTP + EventBridge schedule."""
+    from app.jobs import fetch as jobs_fetch
+
+    if not os.access(jobs_fetch.JOBS_DIR, os.W_OK):
+        tmp = Path("/tmp/pmory-jobs")
+        tmp.mkdir(parents=True, exist_ok=True)
+        jobs_fetch.OPENINGS_PATH = tmp / "openings.json"
+        jobs_fetch.JOBS_DIR = tmp
+        from app.email import notify as notify_mod
+
+        notify_mod.SEEN_PATH = tmp / "seen_job_ids.json"
+
+    payload = refresh_openings()
+    notify_result = None
+    if notify:
+        try:
+            notify_result = notify_new_jobs(payload.get("jobs") or [])
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Notify after refresh failed")
+            notify_result = {"error": str(exc)[:300]}
+    return {
+        "updatedAt": payload.get("updatedAt"),
+        "count": payload.get("count", 0),
+        "jobs": payload.get("jobs") or [],
+        "errors": payload.get("errors") or [],
+        "notify": notify_result,
+    }
+
+
 @app.post("/api/jobs/refresh", response_model=JobsResponse)
 async def post_jobs_refresh(
     token: str | None = Query(default=None),
@@ -113,38 +143,13 @@ async def post_jobs_refresh(
     """
     Pull latest openings from configured Greenhouse/Lever boards.
     When notify=true (default), email opted-in subscribers about brand-new roles.
+    Persists to S3 when JOBS_S3_BUCKET is set.
     """
     expected = JOBS_REFRESH_TOKEN
     if expected and token != expected:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
     try:
-        from app.jobs import fetch as jobs_fetch
-
-        if not os.access(jobs_fetch.JOBS_DIR, os.W_OK):
-            tmp = Path("/tmp/pmory-jobs")
-            tmp.mkdir(parents=True, exist_ok=True)
-            jobs_fetch.OPENINGS_PATH = tmp / "openings.json"
-            jobs_fetch.JOBS_DIR = tmp
-            # Keep notify seen-ids writable on Lambda
-            from app.email import notify as notify_mod
-
-            notify_mod.SEEN_PATH = tmp / "seen_job_ids.json"
-
-        payload = refresh_openings()
-        notify_result = None
-        if notify:
-            try:
-                notify_result = notify_new_jobs(payload.get("jobs") or [])
-            except Exception as exc:  # noqa: BLE001
-                logger.exception("Notify after refresh failed")
-                notify_result = {"error": str(exc)[:300]}
-        return JobsResponse(
-            updatedAt=payload.get("updatedAt"),
-            count=payload.get("count", 0),
-            jobs=payload.get("jobs") or [],
-            errors=payload.get("errors") or [],
-            notify=notify_result,
-        )
+        return JobsResponse(**run_jobs_refresh(notify=notify))
     except Exception as exc:
         logger.exception("Job refresh failed")
         raise HTTPException(status_code=500, detail=str(exc)[:400]) from exc
@@ -232,4 +237,33 @@ async def chat(body: ChatRequest):
         raise HTTPException(status_code=500, detail=detail) from exc
 
 
-handler = Mangum(app, lifespan="off")
+_http_handler = Mangum(app, lifespan="off")
+
+
+def handler(event, context):
+    """Lambda entry: HTTP (Function URL) or EventBridge schedule → job refresh."""
+    if isinstance(event, dict) and (
+        event.get("source") == "aws.events"
+        or event.get("detail-type") == "Scheduled Event"
+        or event.get("pmory_action") == "refresh_jobs"
+    ):
+        logger.info("Scheduled job refresh starting")
+        try:
+            result = run_jobs_refresh(notify=True)
+            logger.info(
+                "Scheduled refresh done count=%s updatedAt=%s notify=%s",
+                result.get("count"),
+                result.get("updatedAt"),
+                result.get("notify"),
+            )
+            return {
+                "ok": True,
+                "count": result.get("count"),
+                "updatedAt": result.get("updatedAt"),
+                "errors": result.get("errors"),
+                "notify": result.get("notify"),
+            }
+        except Exception as exc:
+            logger.exception("Scheduled job refresh failed")
+            return {"ok": False, "error": str(exc)[:400]}
+    return _http_handler(event, context)

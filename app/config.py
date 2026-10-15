@@ -18,6 +18,10 @@ MAX_DISTANCE_FOR_KNOWLEDGE = float(os.environ.get("MAX_DISTANCE_FOR_KNOWLEDGE", 
 # Optional shared secret for POST /api/jobs/refresh (?token=...)
 JOBS_REFRESH_TOKEN = os.environ.get("JOBS_REFRESH_TOKEN", "")
 JOBS_DIR = Path(os.environ.get("JOBS_DIR", BASE_DIR / "jobs"))
+# When set, openings.json + seen_job_ids.json persist in S3 (survives Lambda cold starts)
+JOBS_S3_BUCKET = os.environ.get("JOBS_S3_BUCKET", "")
+JOBS_S3_OPENINGS_KEY = os.environ.get("JOBS_S3_OPENINGS_KEY", "openings.json")
+JOBS_S3_SEEN_KEY = os.environ.get("JOBS_S3_SEEN_KEY", "seen_job_ids.json")
 
 # Email alerts (SES + DynamoDB)
 # Note: Lambda provides AWS_REGION automatically — do not set it in function env.
